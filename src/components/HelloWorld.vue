@@ -1,44 +1,111 @@
+
 <template>
   <div class="hello">
-    <h1>{{ msg }}</h1>
-    <p>
-      For a guide and recipes on how to configure / customize this project,<br>
-      check out the
-      <a href="https://cli.vuejs.org" target="_blank" rel="noopener">vue-cli documentation</a>.
-    </p>
-    <h3>Installed CLI Plugins</h3>
-    <ul>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-babel" target="_blank" rel="noopener">babel</a></li>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-eslint" target="_blank" rel="noopener">eslint</a></li>
-    </ul>
-    <h3>Essential Links</h3>
-    <ul>
-      <li><a href="https://vuejs.org" target="_blank" rel="noopener">Core Docs</a></li>
-      <li><a href="https://forum.vuejs.org" target="_blank" rel="noopener">Forum</a></li>
-      <li><a href="https://chat.vuejs.org" target="_blank" rel="noopener">Community Chat</a></li>
-      <li><a href="https://twitter.com/vuejs" target="_blank" rel="noopener">Twitter</a></li>
-      <li><a href="https://news.vuejs.org" target="_blank" rel="noopener">News</a></li>
-    </ul>
-    <h3>Ecosystem</h3>
-    <ul>
-      <li><a href="https://router.vuejs.org" target="_blank" rel="noopener">vue-router</a></li>
-      <li><a href="https://vuex.vuejs.org" target="_blank" rel="noopener">vuex</a></li>
-      <li><a href="https://github.com/vuejs/vue-devtools#vue-devtools" target="_blank" rel="noopener">vue-devtools</a></li>
-      <li><a href="https://vue-loader.vuejs.org" target="_blank" rel="noopener">vue-loader</a></li>
-      <li><a href="https://github.com/vuejs/awesome-vue" target="_blank" rel="noopener">awesome-vue</a></li>
-    </ul>
+    <LoginState v-slot="{ loginState, loading }">
+      <h1>
+        {{ docs[0].name
+        }}{{ loading ? "加载中" : loginState ? "已登录" : "没登录" }}
+      </h1>
+    </LoginState>
+    <h2>图片上传</h2>
+    <el-upload 
+      :on-progress="onprogress"
+      class="upload-demo"
+      drag
+      action="#"
+      multiple
+    >
+      <i class="el-icon-upload"></i>
+      <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+      <div class="el-upload__tip" slot="tip">
+        只能上传jpg/png文件，且不超过500kb
+      </div>
+    </el-upload>
+  <br>
+    <h2>识别结果：{{imageResult}}</h2>
   </div>
 </template>
 
 <script>
+import Vue from "vue";
+import Cloudbase from "@cloudbase/vue-provider";
+import tcb from "@cloudbase/js-sdk";
+
+//第二步，初始化
+const app = tcb.init({
+  env: "my-webify-app-0g9xwgxn5bf25b1b"
+});
+
+Vue.use(Cloudbase, {
+  env: "my-webify-app-0g9xwgxn5bf25b1b",
+});
 export default {
-  name: 'HelloWorld',
+  async created() {
+    // 以匿名登录为例
+    await this.$cloudbase
+      .auth({ persistence: "local" })
+      .anonymousAuthProvider()
+      .signIn();
+    // 数据库查询
+    const queryResult = await this.$cloudbase
+      .database()
+      .collection("users")
+      .where({})
+      .get();
+    this.docs = queryResult.data;
+    
+  },
+  name: "HelloWorld",
+  data() {
+    return {
+      docs: [],
+      envId: "my-webify-app-0g9xwgxn5bf25b1b",
+      callFunctionResult: "",
+      imageResult: '',
+    };
+  },
   props: {
-    msg: String
-  }
-}
+    msg: String,
+  },
+  methods: {
+    onprogress(event, file) {
+      app.uploadFile({
+   
+        cloudPath: "images/"+file.raw.name,
+       
+        filePath: file.raw,
+      }).then((res) => {
+        this.callFunctionimage(res.fileID)
+      });
+    },
+
+    async callFunctionimage(fileid) {
+      try {
+        const res = await this.$cloudbase.callFunction({
+          name: "wechat",
+          data: {
+            way: "image",
+            fileid:fileid
+          },
+        });
+        var data = JSON.parse(res.result.body);
+        var resultstr = ''
+        for(var i=0;i<data.words_result.length;i++){
+            resultstr = resultstr+data.words_result[i].words
+        }
+        this.imageResult =resultstr;
+      
+      } catch (e) {
+        console.error(e);
+        this.callFunctionResult = e.message;
+      }
+    }, 
+  },
+};
 </script>
 
+
+"
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
 h3 {
@@ -54,5 +121,11 @@ li {
 }
 a {
   color: #42b983;
+}
+
+.hello {
+  max-width: 500px;
+  margin: 0 auto;
+  word-break: break-all;
 }
 </style>
